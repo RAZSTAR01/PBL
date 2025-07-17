@@ -1,0 +1,56 @@
+function onOpen() {
+  const ui = SpreadsheetApp.getUi();
+  ui.createMenu("🔍 Gemini Summary")
+    .addItem("Summarize All Sensor Data", "summarizeAllSensorDataWithGemini")
+    .addToUi();
+}
+
+function summarizeAllSensorDataWithGemini() {
+  const apiKey = 'AIzaSyDpN0BWNVj0HSM3K2maYdFel98_MtJcxRA'; // 🔐 Replace this with your Gemini API key
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+
+  const realtimeSheet = ss.getSheetByName('Sheet1');
+  const forecastSheet = ss.getSheetByName('Forecasts');
+  const summarySheet = ss.getSheetByName('Summary');
+
+  function convertToCSV(data) {
+    return data.map(row => row.join(',')).join('\n');
+  }
+
+  function getGeminiSummary(prompt) {
+    const payload = {
+      contents: [{ parts: [{ text: prompt }] }]
+    };
+    const options = {
+      method: 'POST',
+      contentType: 'application/json',
+      payload: JSON.stringify(payload),
+      muteHttpExceptions: true
+    };
+    const url = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=' + apiKey;
+    const response = UrlFetchApp.fetch(url, options);
+    const result = JSON.parse(response.getContentText());
+    return result.candidates?.[0]?.content?.parts?.[0]?.text || "No summary returned.";
+  }
+
+  // Get summaries
+  const realtimeData = realtimeSheet.getDataRange().getValues();
+  const forecastData = forecastSheet.getDataRange().getValues();
+
+  const realtimePrompt = "This is real-time sensor data:\n" + convertToCSV(realtimeData) + "\nSummarize the trends.";
+  const forecastPrompt = "This is forecast sensor data:\n" + convertToCSV(forecastData) + "\nSummarize expected trends.";
+
+  const realtimeSummary = getGeminiSummary(realtimePrompt);
+  const forecastSummary = getGeminiSummary(forecastPrompt);
+
+  // Output to Summary sheet
+  summarySheet.clear();
+  summarySheet.getRange("A1").setValue("Real-Time Data Summary:");
+  summarySheet.getRange("A2").setValue(realtimeSummary);
+  summarySheet.getRange("A4").setValue("Forecast Data Summary:");
+  summarySheet.getRange("A5").setValue(forecastSummary);
+  summarySheet.getRange("A7").setValue("Last Updated: " + new Date().toLocaleString());
+
+  Logger.log("Real-Time Summary:\n" + realtimeSummary);
+  Logger.log("Forecast Summary:\n" + forecastSummary);
+}
